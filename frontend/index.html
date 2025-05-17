@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movie Download Hub</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@telegram-web-apps/sdk@latest/telegram-web-app.js"></script>
+    <style>
+        :root {
+            --tg-theme-bg-color: #1a1a1a;
+            --tg-theme-text-color: #ffffff;
+            --tg-theme-hint-color: #888888;
+            --tg-theme-link-color: #3390ec;
+            --tg-theme-button-color: #3390ec;
+            --tg-theme-button-text-color: #ffffff;
+        }
+
+        body {
+            background-color: var(--tg-theme-bg-color);
+            color: var(--tg-theme-text-color);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+
+        .loader {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 3px solid var(--tg-theme-button-color);
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .movie-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .movie-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+        }
+
+        .unlock-btn {
+            background-color: var(--tg-theme-button-color);
+            color: var(--tg-theme-button-text-color);
+            transition: all 0.3s ease;
+        }
+
+        .unlock-btn:hover {
+            opacity: 0.9;
+            transform: scale(1.05);
+        }
+
+        .search-input {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: var(--tg-theme-text-color);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .search-input:focus {
+            border-color: var(--tg-theme-button-color);
+            outline: none;
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="p-4">
+    <div class="container mx-auto px-4 max-w-4xl">
+        <!-- Header -->
+        <header class="mb-6 text-center">
+            <h1 class="text-3xl font-bold mb-2">Movie Download Hub</h1>
+            <p class="text-gray-400">Search and download your favorite movies</p>
+        </header>
+
+        <!-- Search Form -->
+        <div class="mb-8">
+            <div class="flex flex-col md:flex-row gap-4">
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    class="search-input flex-grow px-4 py-3 rounded-lg text-lg w-full md:w-auto"
+                    placeholder="Search for a movie..."
+                >
+                <button 
+                    id="searchButton" 
+                    class="unlock-btn px-6 py-3 rounded-lg font-medium text-lg w-full md:w-auto"
+                >
+                    Search
+                </button>
+            </div>
+        </div>
+
+        <!-- Status Messages -->
+        <div id="statusMessage" class="hidden text-center py-4 mb-6 rounded-lg"></div>
+
+        <!-- Loading Indicator -->
+        <div id="loadingIndicator" class="hidden py-12 text-center">
+            <div class="loader mb-4"></div>
+            <p class="text-gray-400">Searching for movies...</p>
+        </div>
+
+        <!-- Results Container -->
+        <div id="resultsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="text-center py-12">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto text-gray-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h18M3 16h18" />
+            </svg>
+            <h2 class="text-xl font-bold mb-2">No Movies Found</h2>
+            <p class="text-gray-400">Search for a movie to see results</p>
+        </div>
+    </div>
+
+    <!-- Movie Card Template (hidden) -->
+    <template id="movieCardTemplate">
+        <div class="movie-card bg-gray-800 rounded-xl overflow-hidden shadow-lg">
+            <div class="relative">
+                <img class="w-full h-56 object-cover movie-poster" src="" alt="">
+                <div class="absolute top-2 right-2 bg-black bg-opacity-70 text-xs py-1 px-2 rounded movie-year"></div>
+            </div>
+            <div class="p-5">
+                <h3 class="text-xl font-bold mb-2 movie-title"></h3>
+                <p class="text-gray-400 text-sm mb-4 movie-plot line-clamp-3"></p>
+                <div class="download-section">
+                    <button class="unlock-btn w-full py-3 rounded-lg font-medium pulse">
+                        Unlock Download
+                    </button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- No Download Template (hidden) -->
+    <template id="noDownloadTemplate">
+        <div class="bg-gray-700 bg-opacity-50 rounded-lg p-3 mt-3 text-center">
+            <p class="text-gray-300 text-sm">Download not available yet</p>
+        </div>
+    </template>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize Telegram WebApp
+            const tgApp = window.Telegram?.WebApp;
+            if (tgApp) {
+                tgApp.ready();
+                tgApp.expand();
+                
+                // Apply theme colors if provided by Telegram
+                if (tgApp.themeParams) {
+                    document.documentElement.style.setProperty('--tg-theme-bg-color', tgApp.themeParams.bg_color || '#1a1a1a');
+                    document.documentElement.style.setProperty('--tg-theme-text-color', tgApp.themeParams.text_color || '#ffffff');
+                    document.documentElement.style.setProperty('--tg-theme-button-color', tgApp.themeParams.button_color || '#3390ec');
+                    document.documentElement.style.setProperty('--tg-theme-button-text-color', tgApp.themeParams.button_text_color || '#ffffff');
+                }
+            }
+
+            // Elements
+            const searchInput = document.getElementById('searchInput');
+            const searchButton = document.getElementById('searchButton');
+            const resultsContainer = document.getElementById('resultsContainer');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const statusMessage = document.getElementById('statusMessage');
+            const emptyState = document.getElementById('emptyState');
+            const movieCardTemplate = document.getElementById('movieCardTemplate');
+            const noDownloadTemplate = document.getElementById('noDownloadTemplate');
+
+            // Event Listeners
+            searchButton.addEventListener('click', searchMovies);
+            searchInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    searchMovies();
+                }
+            });
+
+            // Mock API endpoint for OMDb API (in production, this would be your backend endpoint)
+            const API_URL = 'https://your-backend-url.com/api/movies/search';
+            
+            // Mock movie database (in production, this would come from your backend)
+            const movieDatabase = [
+                { id: "tt0111161", title: "The Shawshank Redemption", downloadUrl: "https://example.com/download/shawshank", monetagUrl: "https://monetag.com/ad/shawshank" },
+                { id: "tt0068646", title: "The Godfather", downloadUrl: "https://example.com/download/godfather", monetagUrl: "https://monetag.com/ad/godfather" },
+                { id: "tt0468569", title: "The Dark Knight", downloadUrl: "https://example.com/download/dark-knight", monetagUrl: "https://monetag.com/ad/dark-knight" }
+            ];
+
+            // Search Movies Function
+            function searchMovies() {
+                const query = searchInput.value.trim();
+                
+                if (!query) {
+                    showStatus('Please enter a movie title', 'warning');
+                    return;
+                }
+                
+                // Show loading state
+                showLoading(true);
+                emptyState.classList.add('hidden');
+                resultsContainer.innerHTML = '';
+                
+                // In production, this would be a real API call to your backend
+                // For demo purposes, we'll use a timeout and mock data
+                setTimeout(() => {
+                    // Mock API response
+                    const mockResponse = {
+                        success: true,
+                        results: [
+                            {
+                                id: "tt0111161",
+                                Title: "The Shawshank Redemption",
+                                Year: "1994",
+                                Poster: "https://m.media-amazon.com/images/M/MV5BNDE3ODcxYzMtY2YzZC00NmNlLWJiNDMtZDViZWM2MzIxZDYwXkEyXkFqcGdeQXVyNjAwNDUxODI@._V1_SX300.jpg",
+                                Plot: "Over the course of several years, two convicts form a friendship, seeking consolation and, eventually, redemption through basic compassion."
+                            }
+                        ]
+                    };
+                    
+                    // Process results
+                    if (mockResponse.success && mockResponse.results.length > 0) {
+                        displayMovies(mockResponse.results);
+                        showLoading(false);
+                    } else {
+                        showLoading(false);
+                        showStatus('No movies found matching your search', 'error');
+                        emptyState.classList.remove('hidden');
+                    }
+                }, 1500);
+            }
+
+            // Display Movies Function
+            function displayMovies(movies) {
+                resultsContainer.innerHTML = '';
+                
+                movies.forEach(movie => {
+                    const movieCard = movieCardTemplate.content.cloneNode(true);
+                    
+                    // Set movie details
+                    movieCard.querySelector('.movie-title').textContent = movie.Title;
+                    movieCard.querySelector('.movie-year').textContent = movie.Year;
+                    movieCard.querySelector('.movie-plot').textContent = movie.Plot;
+                    
+                    const posterElement = movieCard.querySelector('.movie-poster');
+                    if (movie.Poster && movie.Poster !== 'N/A') {
+                        posterElement.src = movie.Poster;
+                        posterElement.alt = `${movie.Title} poster`;
+                    } else {
+                        posterElement.src = 'https://via.placeholder.com/300x450?text=No+Poster';
+                        posterElement.alt = 'No poster available';
+                    }
+                    
+                    // Check if download is available
+                    const downloadSection = movieCard.querySelector('.download-section');
+                    const downloadButton = downloadSection.querySelector('button');
+                    
+                    const downloadInfo = movieDatabase.find(item => item.id === movie.id);
+                    
+                    if (downloadInfo) {
+                        // Download available
+                        downloadButton.addEventListener('click', function() {
+                            // In production, this would be a real redirect
+                            alert(`Redirecting to Monetag ad. After viewing, you'll be redirected to the download link.`);
+                            // window.location.href = downloadInfo.monetagUrl;
+                        });
+                    } else {
+                        // No download available
+                        downloadButton.remove();
+                        const noDownload = noDownloadTemplate.content.cloneNode(true);
+                        downloadSection.appendChild(noDownload);
+                    }
+                    
+                    resultsContainer.appendChild(movieCard);
+                });
+            }
+
+            // Show/Hide Loading Indicator
+            function showLoading(isLoading) {
+                if (isLoading) {
+                    loadingIndicator.classList.remove('hidden');
+                } else {
+                    loadingIndicator.classList.add('hidden');
+                }
+            }
+
+            // Show Status Message
+            function showStatus(message, type) {
+                statusMessage.textContent = message;
+                statusMessage.classList.remove('hidden', 'bg-red-900', 'bg-yellow-900', 'bg-green-900');
+                
+                switch(type) {
+                    case 'error':
+                        statusMessage.classList.add('bg-red-900');
+                        break;
+                    case 'warning':
+                        statusMessage.classList.add('bg-yellow-900');
+                        break;
+                    case 'success':
+                        statusMessage.classList.add('bg-green-900');
+                        break;
+                }
+                
+                statusMessage.classList.remove('hidden');
+                
+                setTimeout(() => {
+                    statusMessage.classList.add('hidden');
+                }, 3000);
+            }
+        });
+    </script>
+</body>
+</html>
