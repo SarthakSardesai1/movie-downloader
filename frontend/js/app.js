@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const noDownloadTemplate = document.getElementById('noDownloadTemplate');
 
     // API Base URL
-    const API_BASE_URL = 'https://movie-downloader-xi35.onrender.com/api';
+    const API_BASE_URL = 'https://movie-downloader-pljq.onrender.com';
 
     // Event Listeners
     searchButton.addEventListener('click', searchMovies);
