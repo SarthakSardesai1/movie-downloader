@@ -1,14 +1,14 @@
+```javascript
 const express = require('express');
+const router = express.Router();
 const axios = require('axios');
-const { body, param, query, validationResult } = require('express-validator');
+const { query, param } = require('express-validator');
+const { validationResult } = require('express-validator');
 const Movie = require('../models/movie');
 const config = require('../config/config');
 
-const router = express.Router();
-
-// Search movies from OMDb API
 router.get('/search', [
-    query('title').trim().notEmpty().withMessage('Movie title is required')
+    query('title').trim().notEmpty().withMessage('Search title is required')
 ], async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -16,20 +16,33 @@ router.get('/search', [
     }
     try {
         const { title } = req.query;
-        const response = await axios.get(`http://www.omdbapi.com/?apikey=${config.omdbApiKey}&s=${encodeURIComponent(title)}`);
-        if (response.data.Response === 'False') {
-            return res.status(404).json({ error: response.data.Error || 'Movies not found' });
+        const response = await axios.get(`http://www.omdbapi.com/?s=${encodeURIComponent(title)}&apikey=${config.omdbApiKey}`);
+        if (response.data.Response === 'True') {
+            const movies = await Promise.all(response.data.Search.map(async movie => {
+                let dbMovie = null;
+                try {
+                    dbMovie = await Movie.findOne({ imdbID: movie.imdbID });
+                } catch (dbError) {
+                    console.error(`Error checking download link for ${movie.imdbID}:`, dbError.message);
+                }
+                return {
+                    ...movie,
+                    hasDownloadLink: !!dbMovie?.downloadUrl,
+                    downloadId: dbMovie?._id
+                };
+            }));
+            res.json(movies);
+        } else {
+            res.status(404).json({ error: response.data.Error || 'No movies found' });
         }
-        res.json(response.data);
     } catch (error) {
         console.error('Error searching movies:', error.message);
         res.status(500).json({ error: 'Server error while searching movies' });
     }
 });
 
-// Get movie details from OMDb API
 router.get('/movie/:imdbID', [
-    param('imdbID').matches(/^tt\d+$/).withMessage('Invalid IMDb ID')
+    param('imdbID').trim().notEmpty().withMessage('IMDb ID is required')
 ], async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -37,24 +50,28 @@ router.get('/movie/:imdbID', [
     }
     try {
         const { imdbID } = req.params;
-        const response = await axios.get(`http://www.omdbapi.com/?apikey=${config.omdbApiKey}&i=${imdbID}&plot=full`);
-        if (response.data.Response === 'False') {
-            return res.status(404).json({ error: response.data.Error || 'Movie not found' });
+        const response = await axios.get(`http://www.omdbapi.com/?i=${imdbID}&apikey=${config.omdbApiKey}`);
+        if (response.data.Response === 'True') {
+            let dbMovie = null;
+            try {
+                dbMovie = await Movie.findOne({ imdbID });
+            } catch (dbError) {
+                console.error(`Error checking download link for ${imdbID}:`, dbError.message);
+            }
+            res.json({
+                ...response.data,
+                hasDownloadLink: !!dbMovie?.downloadUrl,
+                downloadId: dbMovie?._id
+            });
+        } else {
+            res.status(404).json({ error: response.data.Error || 'Movie not found' });
         }
-        const movie = await Movie.findOne({ imdbID });
-        const result = {
-            ...response.data,
-            hasDownloadLink: !!movie,
-            downloadId: movie ? movie.id : null
-        };
-        res.json(result);
     } catch (error) {
         console.error('Error fetching movie details:', error.message);
         res.status(500).json({ error: 'Server error while fetching movie details' });
     }
 });
 
-// Generate Monetag ad link for a movie
 router.get('/download/:id', [
     param('id').isMongoId().withMessage('Invalid download ID')
 ], async (req, res) => {
@@ -80,3 +97,4 @@ router.get('/download/:id', [
 });
 
 module.exports = router;
+```
