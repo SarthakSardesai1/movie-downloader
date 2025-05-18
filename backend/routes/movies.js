@@ -33,11 +33,17 @@ router.get('/search', [
             }));
             res.json(movies);
         } else {
+            console.warn(`OMDB API error: ${response.data.Error}`);
             res.status(404).json({ error: response.data.Error || 'No movies found' });
         }
     } catch (error) {
-        console.error('Error searching movies:', error.message);
-        res.status(500).json({ error: 'Server error while searching movies' });
+        console.error('Error searching movies:', {
+            message: error.message,
+            status: error.response?.status,
+            data: error.response?.data,
+            axios: error.isAxiosError ? error.config : null
+        });
+        res.status(500).json({ error: `Server error while searching movies: ${error.message}` });
     }
 });
 
@@ -64,11 +70,16 @@ router.get('/movie/:imdbID', [
                 downloadId: dbMovie?._id
             });
         } else {
+            console.warn(`OMDB API error: ${response.data.Error}`);
             res.status(404).json({ error: response.data.Error || 'Movie not found' });
         }
     } catch (error) {
-        console.error('Error fetching movie details:', error.message);
-        res.status(500).json({ error: 'Server error while fetching movie details' });
+        console.error('Error fetching movie details:', {
+            message: error.message,
+            status: error.response?.status,
+            data: error.response?.data
+        });
+        res.status(500).json({ error: `Server error while fetching movie details: ${error.message}` });
     }
 });
 
@@ -97,4 +108,3 @@ router.get('/download/:id', [
 });
 
 module.exports = router;
-
