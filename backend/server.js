@@ -21,7 +21,7 @@ mongoose.connect(config.mongoUri)
 // Middleware
 app.use(helmet());
 app.use(cors({
-    origin: ['https://movie-downloader-new.onrender.com', 'https://t.me']
+    origin: ['https://movie-downloader-pljq.onrender.com']
 }));
 app.use(express.json());
 app.use(rateLimit({
