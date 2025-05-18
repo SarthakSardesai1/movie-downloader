@@ -81,9 +81,7 @@
             100% { transform: scale(1); }
         }
     </style>
-    <script src='//solseewuthi.net/sdk.js' data-zone='9344311' data-sdk='show_9344311'></script>
 </head>
-   
 <body class="p-4">
     <div class="container mx-auto px-4 max-w-4xl">
         <!-- Header -->
@@ -185,6 +183,9 @@
             const movieCardTemplate = document.getElementById('movieCardTemplate');
             const noDownloadTemplate = document.getElementById('noDownloadTemplate');
 
+            // API Base URL
+            const API_BASE_URL = 'https://movie-downloader-xi35.onrender.com/api';
+
             // Event Listeners
             searchButton.addEventListener('click', searchMovies);
             searchInput.addEventListener('keypress', function(e) {
@@ -193,18 +194,8 @@
                 }
             });
 
-            // Mock API endpoint for OMDb API (in production, this would be your backend endpoint)
-            const API_URL = 'https://movie-downloader-xi35.onrender.com';
-            
-            // Mock movie database (in production, this would come from your backend)
-            const movieDatabase = [
-                { id: "tt0111161", title: "The Shawshank Redemption", downloadUrl: "https://example.com/download/shawshank", monetagUrl: "https://monetag.com/ad/shawshank" },
-                { id: "tt0068646", title: "The Godfather", downloadUrl: "https://example.com/download/godfather", monetagUrl: "https://monetag.com/ad/godfather" },
-                { id: "tt0468569", title: "The Dark Knight", downloadUrl: "https://example.com/download/dark-knight", monetagUrl: "https://monetag.com/ad/dark-knight" }
-            ];
-
             // Search Movies Function
-            function searchMovies() {
+            async function searchMovies() {
                 const query = searchInput.value.trim();
                 
                 if (!query) {
@@ -217,33 +208,35 @@
                 emptyState.classList.add('hidden');
                 resultsContainer.innerHTML = '';
                 
-                // In production, this would be a real API call to your backend
-                // For demo purposes, we'll use a timeout and mock data
-                setTimeout(() => {
-                    // Mock API response
-                    const mockResponse = {
-                        success: true,
-                        results: [
-                            {
-                                id: "tt0111161",
-                                Title: "The Shawshank Redemption",
-                                Year: "1994",
-                                Poster: "https://m.media-amazon.com/images/M/MV5BNDE3ODcxYzMtY2YzZC00NmNlLWJiNDMtZDViZWM2MzIxZDYwXkEyXkFqcGdeQXVyNjAwNDUxODI@._V1_SX300.jpg",
-                                Plot: "Over the course of several years, two convicts form a friendship, seeking consolation and, eventually, redemption through basic compassion."
-                            }
-                        ]
-                    };
+                try {
+                    const response = await fetch(`${API_BASE_URL}/search?title=${encodeURIComponent(query)}`);
+                    const data = await response.json();
                     
-                    // Process results
-                    if (mockResponse.success && mockResponse.results.length > 0) {
-                        displayMovies(mockResponse.results);
+                    if (data.error) {
+                        showLoading(false);
+                        showStatus(data.error, 'error');
+                        emptyState.classList.remove('hidden');
+                    } else if (data.Search && data.Search.length > 0) {
+                        // Fetch detailed data for each movie
+                        const detailedMovies = await Promise.all(
+                            data.Search.map(async (movie) => {
+                                const detailResponse = await fetch(`${API_BASE_URL}/movie/${movie.imdbID}`);
+                                const detailData = await detailResponse.json();
+                                return detailData.error ? movie : detailData;
+                            })
+                        );
+                        displayMovies(detailedMovies);
                         showLoading(false);
                     } else {
                         showLoading(false);
                         showStatus('No movies found matching your search', 'error');
                         emptyState.classList.remove('hidden');
                     }
-                }, 1500);
+                } catch (error) {
+                    showLoading(false);
+                    showStatus('An error occurred while searching', 'error');
+                    emptyState.classList.remove('hidden');
+                }
             }
 
             // Display Movies Function
@@ -256,7 +249,7 @@
                     // Set movie details
                     movieCard.querySelector('.movie-title').textContent = movie.Title;
                     movieCard.querySelector('.movie-year').textContent = movie.Year;
-                    movieCard.querySelector('.movie-plot').textContent = movie.Plot;
+                    movieCard.querySelector('.movie-plot').textContent = movie.Plot || 'No plot available';
                     
                     const posterElement = movieCard.querySelector('.movie-poster');
                     if (movie.Poster && movie.Poster !== 'N/A') {
@@ -271,14 +264,21 @@
                     const downloadSection = movieCard.querySelector('.download-section');
                     const downloadButton = downloadSection.querySelector('button');
                     
-                    const downloadInfo = movieDatabase.find(item => item.id === movie.id);
-                    
-                    if (downloadInfo) {
+                    if (movie.hasDownloadLink && movie.downloadId) {
                         // Download available
-                        downloadButton.addEventListener('click', function() {
-                            // In production, this would be a real redirect
-                            alert(`Redirecting to Monetag ad. After viewing, you'll be redirected to the download link.`);
-                            // window.location.href = downloadInfo.monetagUrl;
+                        downloadButton.addEventListener('click', async function() {
+                            try {
+                                const response = await fetch(`${API_BASE_URL}/download/${movie.downloadId}`);
+                                const data = await response.json();
+                                if (data.redirectUrl) {
+                                    alert(`Redirecting to Monetag ad. After viewing, you'll be redirected to the download link.`);
+                                    window.location.href = data.redirectUrl;
+                                } else {
+                                    showStatus('Download link unavailable', 'error');
+                                }
+                            } catch (error) {
+                                showStatus('Error fetching download link', 'error');
+                            }
                         });
                     } else {
                         // No download available
