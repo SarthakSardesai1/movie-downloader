@@ -1,3 +1,4 @@
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -13,16 +14,14 @@ const config = require('./config/config');
 const app = express();
 
 // MongoDB Connection
-mongoose.connect(config.mongoUri, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-}).then(() => console.log('Connected to MongoDB'))
-  .catch(err => console.error('MongoDB connection error:', err));
+mongoose.connect(config.mongoUri)
+    .then(() => console.log('Connected to MongoDB'))
+    .catch(err => console.error('MongoDB connection error:', err));
 
 // Middleware
 app.use(helmet());
 app.use(cors({
-    origin: ['https://movie-downloader-xi35.onrender.com', 'https://t.me']
+    origin: ['https://movie-downloader-new.onrender.com', 'https://t.me']
 }));
 app.use(express.json());
 app.use(rateLimit({
