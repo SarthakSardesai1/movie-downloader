@@ -1,11 +1,11 @@
-
 const searchInput = document.getElementById('search-input');
 const searchButton = document.getElementById('search-button');
 const statusMessage = document.getElementById('status-message');
 const moviesContainer = document.getElementById('movies-container');
-const API_BASE_URL = 'https://movie-downloader-new.onrender.com/api'; // Update to your Render URL
+const API_BASE_URL = 'https://movie-downloader-pljq.onrender.com'; // Update to your Render URL
 let tgApp = null;
 
+// Initialize Telegram WebApp
 if (typeof Telegram !== 'undefined' && Telegram.WebApp) {
     tgApp = Telegram.WebApp;
     tgApp.ready();
@@ -17,7 +17,7 @@ function showStatus(message, type) {
     statusMessage.style.display = 'block';
     setTimeout(() => {
         statusMessage.style.display = 'none';
-    }, 5000);
+    }, 3000);
 }
 
 async function searchMovies() {
@@ -38,12 +38,11 @@ async function searchMovies() {
                 showStatus('No movies found', 'error');
             }
         } else {
-            showStatus(`Search failed: ${data.error || 'Unknown server error'}`, 'error');
-            console.error('Server error:', data);
+            showStatus(data.error || 'Error searching movies', 'error');
         }
     } catch (error) {
-        showStatus(`Network error: ${error.message}`, 'error');
-        console.error('Network error:', error);
+        showStatus('Error searching movies', 'error');
+        console.error('Search error:', error);
     }
 }
 
@@ -57,7 +56,7 @@ function displayMovies(movies) {
             <h3>${movie.Title}</h3>
             <p>${movie.Year}</p>
             <button class="download-button" ${!movie.hasDownloadLink ? 'disabled' : ''}>
-                ${movie.hasDownloadLink ? 'Unlock Download' : 'Download not available yet'}
+                ${movie.hasDownloadLink ? 'Unlock Download' : 'Download not available'}
             </button>
         `;
         if (movie.hasDownloadLink && movie.downloadId) {
@@ -67,7 +66,7 @@ function displayMovies(movies) {
                     const response = await fetch(`${API_BASE_URL}/download/${movie.downloadId}`);
                     const data = await response.json();
                     if (data.redirectUrl) {
-                        alert(`You’ll be redirected to a brief ad. After viewing, you’ll get the download link for "${data.title}".`);
+                        alert(`Redirecting to ad for "${data.title}" download.`);
                         if (tgApp) {
                             tgApp.openLink(data.redirectUrl);
                         } else {
@@ -86,7 +85,10 @@ function displayMovies(movies) {
     });
 }
 
+// Attach event listeners
 searchButton.addEventListener('click', searchMovies);
 searchInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') searchMovies();
+    if (e.key === 'Enter') {
+        searchMovies();
+    }
 });
